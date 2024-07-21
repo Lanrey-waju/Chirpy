@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func validateChirp(w http.ResponseWriter, r *http.Request) {
+func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
