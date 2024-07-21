@@ -1,0 +1,9 @@
+http://localhost:8080/app/
+
+###
+
+POST http://localhost:8080/admin/metrics
+
+###
+
+POST http://localhost:8080/api/validate_chirp

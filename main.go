@@ -16,9 +16,10 @@ func main() {
 	mux := http.NewServeMux()
 	apiCfg := &apiConfig{}
 	mux.Handle("/app/*", http.StripPrefix("/app", apiCfg.middlewareMetrics(http.FileServer(http.Dir(filepathRoot)))))
-	mux.HandleFunc("GET /metrics", apiCfg.noOfRequests)
-	mux.HandleFunc("/reset", apiCfg.reset)
-	mux.HandleFunc("GET /healthz", ready)
+	mux.HandleFunc("/admin/metrics", apiCfg.noOfRequests)
+	mux.HandleFunc("/api/reset", apiCfg.reset)
+	mux.HandleFunc("GET /api/healthz", ready)
+	mux.HandleFunc("/api/validate_chirp", validateChirp)
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -35,8 +36,23 @@ func (c *apiConfig) middlewareMetrics(next http.Handler) http.Handler {
 }
 
 func (c *apiConfig) noOfRequests(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(200)
 	hits := c.fileserverHits
-	fmt.Fprintf(w, "Hits: %d", hits)
+	fmt.Fprintf(
+		w,
+		`<html>
+
+<body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+</body>
+
+</html>`,
+		hits,
+	)
 }
