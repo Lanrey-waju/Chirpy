@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
@@ -15,9 +16,10 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 
-	type Validity struct {
-		Valid bool `json:"valid"`
+	type returnVal struct {
+		CleanedBody string `json:"cleaned_body"`
 	}
+
 	decoder := json.NewDecoder(r.Body)
 	chirp := Chirp{}
 	err := decoder.Decode(&chirp)
@@ -27,12 +29,14 @@ func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const chirpmaxlength = 140
+	profaneWords := []string{"kerfuffle", "sharbert", "fornax"}
 	if len(chirp.Body) > chirpmaxlength {
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
-	respondWithJSON(w, http.StatusOK, Validity{
-		Valid: true,
+
+	respondWithJSON(w, http.StatusOK, returnVal{
+		CleanedBody: removeProfaneWords(profaneWords, chirp.Body),
 	})
 }
 
@@ -59,4 +63,16 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	}
 	w.WriteHeader(code)
 	w.Write((dat))
+}
+
+func removeProfaneWords(profaneWords []string, body string) string {
+	substrings := strings.Split(body, " ")
+	for i, substring := range substrings {
+		for _, profaneWord := range profaneWords {
+			if strings.ToLower(substring) == strings.ToLower(profaneWord) {
+				substrings[i] = "****"
+			}
+		}
+	}
+	return strings.Join(substrings, " ")
 }
