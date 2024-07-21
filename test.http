@@ -7,3 +7,8 @@ POST http://localhost:8080/admin/metrics
 ###
 
 POST http://localhost:8080/api/validate_chirp
+content-type: application/json
+
+{
+    "body": "I need to share with the world
+}

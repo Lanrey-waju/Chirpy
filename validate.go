@@ -2,10 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
-
-	"github.com/rivo/uniseg"
 )
 
 func validateChirp(w http.ResponseWriter, r *http.Request) {
@@ -17,42 +15,48 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 
-	type returnVal struct {
-		Error string `json:"error"`
-	}
-
 	type Validity struct {
 		Valid bool `json:"valid"`
 	}
-	w.Header().Set("Content-Type", "application/json")
 	decoder := json.NewDecoder(r.Body)
 	chirp := Chirp{}
 	err := decoder.Decode(&chirp)
 	if err != nil {
-		respBody := returnVal{
-			Error: "Something went wrong",
-		}
-		w.WriteHeader(500)
-		dat, _ := json.Marshal(respBody)
-		w.Write(dat)
+		respondWithError(w, http.StatusInternalServerError, "Error decoding chirp body")
 		return
 	}
 
-	fmt.Println(uniseg.GraphemeClusterCount(chirp.Body))
-	if uniseg.GraphemeClusterCount(chirp.Body) > 140 {
-		respBody := returnVal{
-			Error: "Chirpy is too long",
-		}
-		dat, _ := json.Marshal(respBody)
-		w.WriteHeader(400)
-		w.Write(dat)
+	const chirpmaxlength = 140
+	if len(chirp.Body) > chirpmaxlength {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
 		return
 	}
-	w.WriteHeader(200)
-	respBody := Validity{
+	respondWithJSON(w, http.StatusOK, Validity{
 		Valid: true,
-	}
-	dat, _ := json.Marshal(respBody)
-	w.Write(dat)
+	})
+}
 
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	if code > 499 {
+		log.Printf("5XX error: %s", msg)
+	}
+	type errorRessponse struct {
+		Error string `json:"error"`
+	}
+	respondWithJSON(w, code, errorRessponse{
+		Error: msg,
+	})
+
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.Header().Set("Content-type", "application/json")
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader(500)
+		return
+	}
+	w.WriteHeader(code)
+	w.Write((dat))
 }
