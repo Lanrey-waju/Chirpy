@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -32,34 +33,60 @@ func NewDB(path string) (*DB, error) {
 
 }
 
-func PostChirpHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+func ChirpsHandler(w http.ResponseWriter, r *http.Request, db *DB) {
+	switch r.Method {
+	case http.MethodGet:
+		GetChirpHandler(w, r, db)
+	case http.MethodPost:
+		PostChirpHandler(w, r, db)
+	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
 	}
+}
 
-	type returnVal struct {
+func PostChirpHandler(w http.ResponseWriter, r *http.Request, db *DB) {
+	type payload struct {
 		Body string `json:"body"`
 	}
 
+	pd := payload{}
 	decoder := json.NewDecoder(r.Body)
-	chirp := Chirp{}
-	err := decoder.Decode(&chirp)
+	err := decoder.Decode(&pd)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error decoding chirp body")
 		return
 	}
 
 	const chirpmaxlength = 140
-	if len(chirp.Body) > chirpmaxlength {
-		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+	if len(pd.Body) == 0 || len(pd.Body) > chirpmaxlength {
+		respondWithError(w, http.StatusBadRequest, "Chirp is invalid")
 		return
 	}
 
 	profaneWords := []string{"kerfuffle", "sharbert", "fornax"}
-	respondWithJSON(w, http.StatusOK, returnVal{
-		Body: removeProfaneWords(profaneWords, chirp.Body),
+	cleanChirp := removeProfaneWords(profaneWords, pd.Body)
+
+	chirp, err := db.CreateChirp(cleanChirp)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to create chirp")
+		return
+	}
+
+	respondWithJSON(w, http.StatusCreated, chirp)
+
+}
+
+func GetChirpHandler(w http.ResponseWriter, r *http.Request, db *DB) {
+	chirps, err := db.GetChirps()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error getting chirps")
+		return
+	}
+	sort.Slice(chirps, func(i, j int) bool {
+		return chirps[i].ID < chirps[j].ID
 	})
+	respondWithJSON(w, http.StatusOK, chirps)
+
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
@@ -72,7 +99,6 @@ func respondWithError(w http.ResponseWriter, code int, msg string) {
 	respondWithJSON(w, code, errorRessponse{
 		Error: msg,
 	})
-
 }
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
@@ -138,6 +164,30 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		return Chirp{}, err
 	}
 	return chirp, nil
+}
+
+func (db *DB) GetChirps() ([]Chirp, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	var dbData DBStructure
+	var chirps []Chirp
+
+	dat, err := os.ReadFile(db.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Fatalln("Can't read file")
+		}
+		return chirps, err
+	}
+	if err := json.Unmarshal(dat, &dbData); err != nil {
+		return chirps, err
+	}
+
+	for _, chirp := range dbData.Chirps {
+		chirps = append(chirps, chirp)
+	}
+	return chirps, nil
 }
 
 func (db *DB) loadDB() (DBStructure, error) {

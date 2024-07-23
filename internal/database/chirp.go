@@ -1,8 +1,6 @@
 package database
 
-import "sync"
-
 type Chirp struct {
-	ID   int    `json:"id:`
+	ID   int    `json:"id"`
 	Body string `json:"body"`
 }

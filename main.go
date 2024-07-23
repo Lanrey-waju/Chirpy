@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/Lanrey-waju/gChirpy/internal/database"
 )
 
 type apiConfig struct {
@@ -11,15 +13,22 @@ type apiConfig struct {
 }
 
 func main() {
+	db, err := database.NewDB("./database.json")
+	if err != nil {
+		log.Fatalf("Error creating database: %v", err)
+	}
+
 	const filepathRoot = "."
 	const port = "8080"
 	mux := http.NewServeMux()
-	apiCfg := &apiConfig{}
+	apiCfg := apiConfig{}
 	mux.Handle("/app/*", http.StripPrefix("/app", apiCfg.middlewareMetrics(http.FileServer(http.Dir(filepathRoot)))))
 	mux.HandleFunc("/admin/metrics", apiCfg.noOfRequests)
 	mux.HandleFunc("/api/reset", apiCfg.reset)
 	mux.HandleFunc("GET /api/healthz", ready)
-	mux.HandleFunc("/api/validate_chirp", validateChirpHandler)
+	mux.HandleFunc("/api/chirps", func(w http.ResponseWriter, r *http.Request) {
+		database.ChirpsHandler(w, r, db)
+	})
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
