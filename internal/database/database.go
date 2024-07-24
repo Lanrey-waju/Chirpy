@@ -3,9 +3,7 @@ package database
 import (
 	"encoding/json"
 	"log"
-	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"sync"
 )
@@ -31,86 +29,6 @@ func NewDB(path string) (*DB, error) {
 
 	return db, nil
 
-}
-
-func ChirpsHandler(w http.ResponseWriter, r *http.Request, db *DB) {
-	switch r.Method {
-	case http.MethodGet:
-		GetChirpHandler(w, r, db)
-	case http.MethodPost:
-		PostChirpHandler(w, r, db)
-	default:
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func PostChirpHandler(w http.ResponseWriter, r *http.Request, db *DB) {
-	type payload struct {
-		Body string `json:"body"`
-	}
-
-	pd := payload{}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&pd)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error decoding chirp body")
-		return
-	}
-
-	const chirpmaxlength = 140
-	if len(pd.Body) == 0 || len(pd.Body) > chirpmaxlength {
-		respondWithError(w, http.StatusBadRequest, "Chirp is invalid")
-		return
-	}
-
-	profaneWords := []string{"kerfuffle", "sharbert", "fornax"}
-	cleanChirp := removeProfaneWords(profaneWords, pd.Body)
-
-	chirp, err := db.CreateChirp(cleanChirp)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed to create chirp")
-		return
-	}
-
-	respondWithJSON(w, http.StatusCreated, chirp)
-
-}
-
-func GetChirpHandler(w http.ResponseWriter, r *http.Request, db *DB) {
-	chirps, err := db.GetChirps()
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error getting chirps")
-		return
-	}
-	sort.Slice(chirps, func(i, j int) bool {
-		return chirps[i].ID < chirps[j].ID
-	})
-	respondWithJSON(w, http.StatusOK, chirps)
-
-}
-
-func respondWithError(w http.ResponseWriter, code int, msg string) {
-	if code > 499 {
-		log.Printf("5XX error: %s", msg)
-	}
-	type errorRessponse struct {
-		Error string `json:"error"`
-	}
-	respondWithJSON(w, code, errorRessponse{
-		Error: msg,
-	})
-}
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	w.Header().Set("Content-type", "application/json")
-	dat, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-	w.WriteHeader(code)
-	w.Write((dat))
 }
 
 func removeProfaneWords(profaneWords []string, body string) string {
