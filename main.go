@@ -23,14 +23,19 @@ func main() {
 		fileserverHits: 0,
 	}
 
+	handleRequests(&apiCfg)
+}
+
+func handleRequests(cfg *apiConfig) {
 	const filepathRoot = "."
 	const port = "8080"
 	mux := http.NewServeMux()
-	mux.Handle("/app/*", http.StripPrefix("/app", apiCfg.middlewareMetrics(http.FileServer(http.Dir(filepathRoot)))))
-	mux.HandleFunc("/admin/metrics", apiCfg.noOfRequests)
-	mux.HandleFunc("/api/reset", apiCfg.reset)
+	mux.Handle("/app/*", http.StripPrefix("/app", cfg.middlewareMetrics(http.FileServer(http.Dir(filepathRoot)))))
+	mux.HandleFunc("/admin/metrics", cfg.noOfRequests)
+	mux.HandleFunc("/api/reset", cfg.reset)
 	mux.HandleFunc("GET /api/healthz", ready)
-	mux.HandleFunc("/api/chirps", apiCfg.ChirpsHandler)
+	mux.HandleFunc("/api/chirps", cfg.ChirpsHandler)
+	mux.HandleFunc("/api/chirps/{id}", cfg.GetSingleChirpHandler)
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,
@@ -39,21 +44,21 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func (c *apiConfig) middlewareMetrics(next http.Handler) http.Handler {
+func (cfg *apiConfig) middlewareMetrics(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.fileserverHits++
+		cfg.fileserverHits++
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (c *apiConfig) noOfRequests(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) noOfRequests(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(200)
-	hits := c.fileserverHits
+	hits := cfg.fileserverHits
 	fmt.Fprintf(
 		w,
 		`<html>

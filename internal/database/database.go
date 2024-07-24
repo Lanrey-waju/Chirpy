@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"strings"
@@ -131,4 +132,15 @@ func (db *DB) writeDB(dbStructure DBStructure) error {
 	}
 	return nil
 
+}
+
+func (db *DB) GetSingleChirp(id int) (Chirp, error) {
+	dbData, err := db.loadDB()
+	if err != nil {
+		return Chirp{}, err
+	}
+	if chirp, ok := dbData.Chirps[id]; ok {
+		return chirp, nil
+	}
+	return Chirp{}, errors.New("chirp not found")
 }
