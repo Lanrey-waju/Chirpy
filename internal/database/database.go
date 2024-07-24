@@ -155,12 +155,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 
 	dbData.Chirps[newID] = chirp
 
-	data, err := json.Marshal(dbData)
-	if err != nil {
-		return Chirp{}, err
-	}
-	err = os.WriteFile(db.path, data, 0644)
-	if err != nil {
+	if err := db.writeDB(dbData); err != nil {
 		return Chirp{}, err
 	}
 	return chirp, nil
@@ -205,5 +200,17 @@ func (db *DB) loadDB() (DBStructure, error) {
 		return dbData, err
 	}
 	return dbData, nil
+
+}
+
+func (db *DB) writeDB(dbStructure DBStructure) error {
+	data, err := json.Marshal(dbStructure)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(db.path, data, 0644); err != nil {
+		return err
+	}
+	return nil
 
 }
