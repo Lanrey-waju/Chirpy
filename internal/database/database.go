@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log"
 	"os"
-	"strings"
 	"sync"
+
+	"github.com/Lanrey-waju/gChirpy/internal/users"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DB struct {
@@ -15,7 +17,8 @@ type DB struct {
 }
 
 type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
+	Chirps map[int]Chirp         `json:"chirps"`
+	Users  map[string]users.User `json:"users"`
 }
 
 func NewDB(path string) (*DB, error) {
@@ -32,20 +35,8 @@ func NewDB(path string) (*DB, error) {
 
 }
 
-func removeProfaneWords(profaneWords []string, body string) string {
-	substrings := strings.Split(body, " ")
-	for i, substring := range substrings {
-		for _, profaneWord := range profaneWords {
-			if strings.ToLower(substring) == strings.ToLower(profaneWord) {
-				substrings[i] = "****"
-			}
-		}
-	}
-	return strings.Join(substrings, " ")
-}
-
 func (db *DB) ensureDB() error {
-	initialData := `{"chirps": {}}`
+	initialData := `{"chirps": {}, "users": {}}`
 
 	if _, err := os.Stat(db.path); os.IsNotExist(err) {
 		err := os.WriteFile(db.path, []byte(initialData), 0644)
@@ -108,6 +99,7 @@ func (db *DB) loadDB() (DBStructure, error) {
 	readData, err := os.ReadFile(db.path)
 	dbData := DBStructure{
 		Chirps: make(map[int]Chirp),
+		Users:  make(map[string]users.User),
 	}
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -131,7 +123,6 @@ func (db *DB) writeDB(dbStructure DBStructure) error {
 		return err
 	}
 	return nil
-
 }
 
 func (db *DB) GetSingleChirp(id int) (Chirp, error) {
@@ -143,4 +134,82 @@ func (db *DB) GetSingleChirp(id int) (Chirp, error) {
 		return chirp, nil
 	}
 	return Chirp{}, errors.New("chirp not found")
+}
+
+func (db *DB) GetUsers() ([]users.User, error) {
+	db.mux.RLock()
+	defer db.mux.RUnlock()
+
+	dbData := DBStructure{
+		Users: make(map[string]users.User),
+	}
+	var users []users.User
+
+	dat, err := os.ReadFile(db.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return users, nil
+		}
+		return users, err
+	}
+	if err := json.Unmarshal(dat, &dbData); err != nil {
+		return users, err
+	}
+
+	for _, user := range dbData.Users {
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (db *DB) CreateUser(email string, password string) (users.User, error) {
+	db.mux.Lock()
+	defer db.mux.Unlock()
+
+	dbData, err := db.loadDB()
+	if err != nil {
+		log.Printf("Error loading database: %v", err)
+		return users.User{}, err
+	}
+
+	newID := len(dbData.Users) + 1
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		return users.User{}, err
+	}
+	user := users.User{
+		ID:       newID,
+		Email:    email,
+		Password: string(hashedPassword),
+	}
+
+	dbData.Users[email] = user
+
+	if err := db.writeDB(dbData); err != nil {
+		log.Printf("Error writing to database: %v", err)
+		return users.User{}, err
+	}
+	log.Println("Database successfully written")
+
+	return user, nil
+}
+
+func (db *DB) CheckUser(email, password string) (users.User, error) {
+	dbData, err := db.loadDB()
+	if err != nil {
+		return users.User{}, err
+	}
+	user, ok := dbData.Users[email]
+	if !ok {
+		return users.User{}, errors.New("user does not exist")
+	}
+	hashedPassword := dbData.Users[email].Password
+	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		log.Printf("wrong password")
+		return users.User{}, err
+	}
+
+	return user, nil
+
 }

@@ -36,6 +36,9 @@ func handleRequests(cfg *apiConfig) {
 	mux.HandleFunc("GET /api/healthz", ready)
 	mux.HandleFunc("/api/chirps", cfg.ChirpsHandler)
 	mux.HandleFunc("/api/chirps/{id}", cfg.GetSingleChirpHandler)
+	mux.HandleFunc("/api/users", cfg.UsersHandler)
+
+	mux.HandleFunc("/api/login", cfg.LoginUser)
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,

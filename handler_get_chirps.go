@@ -1,12 +1,14 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
 )
 
 func (cfg *apiConfig) GetChirpHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("GetChirpsHandler invoked")
 	chirps, err := cfg.DB.GetChirps()
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error getting chirps")
