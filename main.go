@@ -14,6 +14,7 @@ type apiConfig struct {
 }
 
 func main() {
+
 	db, err := database.NewDB("database.json")
 	if err != nil {
 		log.Fatalf("Error creating database: %v", err)

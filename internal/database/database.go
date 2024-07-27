@@ -17,8 +17,8 @@ type DB struct {
 }
 
 type DBStructure struct {
-	Chirps map[int]Chirp         `json:"chirps"`
-	Users  map[string]users.User `json:"users"`
+	Chirps map[int]Chirp      `json:"chirps"`
+	Users  map[int]users.User `json:"users"`
 }
 
 func NewDB(path string) (*DB, error) {
@@ -99,7 +99,7 @@ func (db *DB) loadDB() (DBStructure, error) {
 	readData, err := os.ReadFile(db.path)
 	dbData := DBStructure{
 		Chirps: make(map[int]Chirp),
-		Users:  make(map[string]users.User),
+		Users:  make(map[int]users.User),
 	}
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -141,7 +141,7 @@ func (db *DB) GetUsers() ([]users.User, error) {
 	defer db.mux.RUnlock()
 
 	dbData := DBStructure{
-		Users: make(map[string]users.User),
+		Users: make(map[int]users.User),
 	}
 	var users []users.User
 
@@ -173,17 +173,17 @@ func (db *DB) CreateUser(email string, password string) (users.User, error) {
 	}
 
 	newID := len(dbData.Users) + 1
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	hashedPassword, err := hashPassword(password)
 	if err != nil {
 		return users.User{}, err
 	}
 	user := users.User{
 		ID:       newID,
 		Email:    email,
-		Password: string(hashedPassword),
+		Password: hashedPassword,
 	}
 
-	dbData.Users[email] = user
+	dbData.Users[newID] = user
 
 	if err := db.writeDB(dbData); err != nil {
 		log.Printf("Error writing to database: %v", err)
@@ -194,22 +194,67 @@ func (db *DB) CreateUser(email string, password string) (users.User, error) {
 	return user, nil
 }
 
-func (db *DB) CheckUser(email, password string) (users.User, error) {
+func (db *DB) GetUserByEmail(email string) (users.User, error) {
 	dbData, err := db.loadDB()
 	if err != nil {
-		return users.User{}, err
+		return users.User{}, nil
 	}
-	user, ok := dbData.Users[email]
-	if !ok {
-		return users.User{}, errors.New("user does not exist")
+	for _, user := range dbData.Users {
+		if user.Email == email {
+			return user, nil
+		}
 	}
-	hashedPassword := dbData.Users[email].Password
-	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	return users.User{}, errors.New("user does not exist")
+}
+
+func (db *DB) GetUserByID(id int) (users.User, error) {
+	dbData, err := db.loadDB()
 	if err != nil {
-		log.Printf("wrong password")
+		return users.User{}, nil
+	}
+	if user, ok := dbData.Users[id]; ok {
+		return user, nil
+	}
+	return users.User{}, errors.New("user does not exist")
+}
+
+func (db *DB) UpdateUser(id int, email, password string) (users.User, error) {
+	dbData, err := db.loadDB()
+	if err != nil {
+		return users.User{}, nil
+	}
+	user, err := db.GetUserByID(id)
+	if err != nil {
 		return users.User{}, err
 	}
 
-	return user, nil
+	user.Email = email
+	user.Password, err = hashPassword(password)
+	if err != nil {
+		return users.User{}, err // Handle the hashing error
+	}
 
+	updatedUser := users.User{
+		ID:       user.ID,
+		Email:    user.Email,
+		Password: user.Password,
+	}
+
+	dbData.Users[user.ID] = updatedUser
+
+	if err := db.writeDB(dbData); err != nil {
+		log.Printf("Error writing to database: %v", err)
+		return users.User{}, err
+	}
+
+	return updatedUser, nil
+
+}
+
+func hashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
 }

@@ -10,9 +10,11 @@ func (cfg *apiConfig) UsersHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		cfg.GetUsersHandler(w, r)
+		cfg.HandleGetUser(w, r)
 	case http.MethodPost:
-		cfg.PostUsersHandler(w, r)
+		cfg.HandlePostUser(w, r)
+	case http.MethodPut:
+		cfg.HandlePutUser(w, r)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}

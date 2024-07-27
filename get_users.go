@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func (cfg *apiConfig) GetUsersHandler(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 	users, err := cfg.DB.GetUsers()
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error getting users")

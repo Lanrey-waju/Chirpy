@@ -8,12 +8,12 @@ import (
 	"github.com/Lanrey-waju/gChirpy/internal/users"
 )
 
-func (cfg *apiConfig) PostUsersHandler(w http.ResponseWriter, r *http.Request) {
+type payload struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 
-	type payload struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+func (cfg *apiConfig) HandlePostUser(w http.ResponseWriter, r *http.Request) {
 
 	pd := payload{}
 	decoder := json.NewDecoder(r.Body)
@@ -39,5 +39,4 @@ func (cfg *apiConfig) PostUsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusCreated, userInfo)
-	log.Println("Response sent")
 }
