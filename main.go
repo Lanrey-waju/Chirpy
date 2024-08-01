@@ -62,6 +62,7 @@ func handleRequests(cfg *apiConfig) {
 
 	mux.HandleFunc("/api/chirps", cfg.ChirpsHandler)
 	mux.HandleFunc("/api/chirps/{id}", cfg.GetSingleChirpHandler)
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", cfg.deleteChirp)
 
 	mux.HandleFunc("/api/users", cfg.UsersHandler)
 

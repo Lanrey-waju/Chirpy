@@ -37,12 +37,12 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 	return chirps, nil
 }
 
-func (db *DB) GetSingleChirp(id int) (Chirp, error) {
+func (db *DB) GetSingleChirp(chirpID int) (Chirp, error) {
 	dbStructure, err := db.loadDB()
 	if err != nil {
 		return Chirp{}, err
 	}
-	if chirp, ok := dbStructure.Chirps[id]; ok {
+	if chirp, ok := dbStructure.Chirps[chirpID]; ok {
 		return chirp, nil
 	}
 	return Chirp{}, errors.New("chirp not found")
@@ -72,4 +72,31 @@ func (db *DB) CreateChirp(authorID int, body string) (Chirp, error) {
 		return Chirp{}, err
 	}
 	return chirp, nil
+}
+
+func (db *DB) DeleteChirp(chirpID, userID int) error {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+
+	chirp, ok := dbStructure.Chirps[chirpID]
+	if !ok {
+		return errors.New("error retrieving chirp")
+	}
+
+	if chirp.AuthorID == userID {
+		delete(dbStructure.Chirps, chirpID)
+	}
+
+	return nil
+}
+
+func (db *DB) GetChirpAuthorID(chirpID int) (int, error) {
+	chirp, err := db.GetSingleChirp(chirpID)
+	if err != nil {
+		return 0, err
+	}
+
+	return chirp.AuthorID, nil
 }
