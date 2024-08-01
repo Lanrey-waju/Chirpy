@@ -3,6 +3,9 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+
+	"github.com/Lanrey-waju/gChirpy/internal/auth"
 )
 
 func (cfg *apiConfig) PostChirpHandler(w http.ResponseWriter, r *http.Request) {
@@ -15,6 +18,24 @@ func (cfg *apiConfig) PostChirpHandler(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&pd)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error decoding chirp body")
+		return
+	}
+
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't get token")
+		return
+	}
+
+	userIDString, err := auth.ValidateJWT(tokenString, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "couldn't validate token")
+		return
+	}
+
+	userIDInt, err := strconv.Atoi(userIDString)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "server error")
 		return
 	}
 
@@ -31,7 +52,7 @@ func (cfg *apiConfig) PostChirpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	cleanChirp := removeProfaneWords(profaneWords, pd.Body)
 
-	chirp, err := cfg.DB.CreateChirp(cleanChirp)
+	chirp, err := cfg.DB.CreateChirp(userIDInt, cleanChirp)
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create chirp")

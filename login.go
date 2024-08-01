@@ -42,7 +42,6 @@ func (cfg *apiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = auth.CheckPasswordHash(params.Password, user.HashedPassword)
-	log.Println("Debugging: Here after", err)
 	if err != nil {
 		return
 	}
