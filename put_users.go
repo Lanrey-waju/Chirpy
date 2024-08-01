@@ -2,67 +2,65 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/joho/godotenv"
+	"github.com/Lanrey-waju/gChirpy/internal/auth"
 )
 
 func (cfg *apiConfig) HandlePutUser(w http.ResponseWriter, r *http.Request) {
-	pd := payload{}
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	params := parameters{}
 
-	if err := json.NewDecoder(r.Body).Decode(&pd); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		log.Println(err)
 		return
 	}
 
-	err := godotenv.Load()
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find JWT")
+		return
+	}
+
 	if err != nil {
 		log.Printf("error loading environment variables: %v", err)
 		return
 	}
 
-	signingKey := []byte(os.Getenv("JWT_SECRET"))
-	if len(signingKey) == 0 {
+	if len(cfg.jwtSecret) == 0 {
 		log.Println("secret key not set")
 		return
 	}
 
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		respondWithError(w, http.StatusUnauthorized, "Authorization Header is Missing")
-		return
-	}
-
-	const bearerPrefix = "Bearer "
-	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		http.Error(w, "invalid authorization header", http.StatusUnauthorized)
-		return
-	}
-
-	tokenString := strings.TrimPrefix(authHeader, bearerPrefix)
-	claims := &jwt.RegisteredClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		return signingKey, nil
-	})
-
-	if err != nil || !token.Valid {
-		http.Error(w, "invalid or expired token", http.StatusUnauthorized)
-		return
-	}
-	userID, err := strconv.Atoi(claims.Subject)
+	userIDString, err := auth.ValidateJWT(token, cfg.jwtSecret)
 	if err != nil {
-		http.Error(w, "invalid authorization header", http.StatusUnauthorized)
+		respondWithError(w, http.StatusUnauthorized, fmt.Sprint("Couldn't validate token: %w", err))
+		return
 	}
 
-	cfg.DB.UpdateUser(userID, pd.Email, pd.Password)
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password")
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDString)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't parse user ID")
+		return
+	}
+
+	cfg.DB.UpdateUser(userID, params.Email, hashedPassword)
 
 	resp := map[string]interface{}{
 		"id":    userID,
-		"email": pd.Email,
+		"email": params.Email,
 	}
 	respondWithJSON(w, http.StatusOK, resp)
 

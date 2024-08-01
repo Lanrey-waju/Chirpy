@@ -32,6 +32,7 @@ func (cfg *apiConfig) PostChirpHandler(w http.ResponseWriter, r *http.Request) {
 	cleanChirp := removeProfaneWords(profaneWords, pd.Body)
 
 	chirp, err := cfg.DB.CreateChirp(cleanChirp)
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to create chirp")
 		return

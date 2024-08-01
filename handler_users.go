@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"github.com/Lanrey-waju/gChirpy/internal/auth"
 )
 
 func (cfg *apiConfig) UsersHandler(w http.ResponseWriter, r *http.Request) {
@@ -18,4 +20,56 @@ func (cfg *apiConfig) UsersHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (cfg *apiConfig) HandleTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Body != http.NoBody {
+		respondWithError(w, http.StatusUnauthorized, "not authorized")
+		return
+	}
+
+	tokenString, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	user, err := cfg.DB.CheckRefreshToken(tokenString)
+	if err != nil {
+		log.Println(err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't get user for refresh token")
+		return
+	}
+
+	accessToken, err := auth.MakeJWT(user.ID)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"token": accessToken,
+	}
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (cfg *apiConfig) HandleTokenRevoke(w http.ResponseWriter, r *http.Request) {
+	if r.Body != http.NoBody {
+		log.Println("Revoke request should not have a body")
+		respondWithError(w, http.StatusBadRequest, "There should be no body in the request")
+		return
+	}
+
+	tokenString, err := auth.GetBearerToken((r.Header))
+	if err != nil {
+		return
+	}
+
+	err = cfg.DB.RevokeToken(tokenString)
+	if err != nil {
+		log.Println("Error revoking token:", err)
+		respondWithError(w, http.StatusUnauthorized, "not authorized")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

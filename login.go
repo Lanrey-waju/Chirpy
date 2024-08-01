@@ -5,49 +5,73 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/Lanrey-waju/gChirpy/internal/auth"
 	"github.com/Lanrey-waju/gChirpy/internal/users"
 )
 
 func (cfg *apiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	type response struct {
+		users.User
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
+	}
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "wrong http method", http.StatusMethodNotAllowed)
 		return
 	}
 
-	type payload struct {
-		Email              string `json:"email"`
-		Password           string `json:"password"`
-		Expires_in_Seconds *int   `json:"expires_in_seconds"`
-	}
-
-	pd := payload{}
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&pd)
+	params := parameters{}
+	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("error decoding JSON: %v", err)
 		respondWithError(w, http.StatusBadRequest, "bad request")
 		return
 	}
-	if pd.Expires_in_Seconds == nil || *pd.Expires_in_Seconds > 86400 {
-		pd.Expires_in_Seconds = new(int)
-		*pd.Expires_in_Seconds = 86400
-	}
 
-	user, err := cfg.DB.GetUserByEmail(pd.Email)
+	user, err := cfg.DB.GetUserByEmail(params.Email)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "User does not exist or wrong credentials")
 		return
 	}
 
-	token := CreateJWT(user.ID, *pd.Expires_in_Seconds)
-
-	userInfo := users.ReturnUserVal{
-		ID:    user.ID,
-		Email: user.Email,
-		Token: token,
+	err = auth.CheckPasswordHash(params.Password, user.HashedPassword)
+	log.Println("Debugging: Here after", err)
+	if err != nil {
+		return
 	}
-	log.Printf("Logged in Successfully!")
-	respondWithJSON(w, http.StatusOK, userInfo)
 
+	accessToken, err := auth.MakeJWT(user.ID)
+	if err != nil {
+		return
+	}
+
+	// Generate refresh tokens
+	refreshToken, err := auth.CreateRefreshToken()
+	if err != nil {
+		log.Printf("error creating refresh token: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	err = cfg.DB.SaveRefreshToken(user.ID, refreshToken)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't save refresh token")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, response{
+		User: users.User{
+			ID:    user.ID,
+			Email: user.Email,
+		},
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+	})
 }

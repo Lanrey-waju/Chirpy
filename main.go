@@ -1,27 +1,49 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/Lanrey-waju/gChirpy/internal/database"
+	"github.com/joho/godotenv"
 )
 
 type apiConfig struct {
 	DB             *database.DB
 	fileserverHits int
+	jwtSecret      string
 }
 
 func main() {
+
+	godotenv.Load(".env")
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET environment variable is not set")
+	}
 
 	db, err := database.NewDB("database.json")
 	if err != nil {
 		log.Fatalf("Error creating database: %v", err)
 	}
+
+	dbg := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+	if dbg != nil && *dbg {
+		err := db.ResetDB()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	apiCfg := apiConfig{
 		DB:             db,
 		fileserverHits: 0,
+		jwtSecret:      jwtSecret,
 	}
 
 	handleRequests(&apiCfg)
@@ -30,14 +52,21 @@ func main() {
 func handleRequests(cfg *apiConfig) {
 	const filepathRoot = "."
 	const port = "8080"
+
 	mux := http.NewServeMux()
 	mux.Handle("/app/*", http.StripPrefix("/app", cfg.middlewareMetrics(http.FileServer(http.Dir(filepathRoot)))))
+
 	mux.HandleFunc("/admin/metrics", cfg.noOfRequests)
 	mux.HandleFunc("/api/reset", cfg.reset)
 	mux.HandleFunc("GET /api/healthz", ready)
+
 	mux.HandleFunc("/api/chirps", cfg.ChirpsHandler)
 	mux.HandleFunc("/api/chirps/{id}", cfg.GetSingleChirpHandler)
+
 	mux.HandleFunc("/api/users", cfg.UsersHandler)
+
+	mux.HandleFunc("POST /api/refresh", cfg.HandleTokenRefresh)
+	mux.HandleFunc("POST /api/revoke", cfg.HandleTokenRevoke)
 
 	mux.HandleFunc("/api/login", cfg.LoginUser)
 	server := &http.Server{

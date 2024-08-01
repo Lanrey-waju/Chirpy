@@ -2,41 +2,52 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"errors"
 	"net/http"
 
+	"github.com/Lanrey-waju/gChirpy/internal/auth"
+	"github.com/Lanrey-waju/gChirpy/internal/database"
 	"github.com/Lanrey-waju/gChirpy/internal/users"
 )
 
-type payload struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 func (cfg *apiConfig) HandlePostUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+	type response struct {
+		users.User
+	}
 
-	pd := payload{}
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&pd)
+	params := parameters{}
+	err := decoder.Decode(&params)
 	if err != nil {
-		log.Println("Error decoding JSON")
-		respondWithError(w, http.StatusInternalServerError, "Error decoding user email")
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters")
 		return
 	}
 
-	user, err := cfg.DB.CreateUser(pd.Email, pd.Password)
+	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
-		log.Println("Error creating user")
-		respondWithError(w, http.StatusInternalServerError, "Failed to create user")
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password")
 		return
 	}
 
-	log.Printf("Created user: %+v", user)
+	user, err := cfg.DB.CreateUser(params.Email, hashedPassword)
+	if err != nil {
+		if errors.Is(err, database.ErrAlreadyExists) {
+			respondWithError(w, http.StatusConflict, "User already exists")
+			return
+		}
 
-	userInfo := users.ReturnUserVal{
-		ID:    user.ID,
-		Email: user.Email,
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create user")
+		return
 	}
 
-	respondWithJSON(w, http.StatusCreated, userInfo)
+	respondWithJSON(w, http.StatusCreated, response{
+		User: users.User{
+			ID:    user.ID,
+			Email: user.Email,
+		},
+	})
 }
