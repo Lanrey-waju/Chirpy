@@ -46,9 +46,9 @@ func (cfg *apiConfig) HandlePostUser(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusCreated, response{
 		User: users.User{
-			ID:            user.ID,
-			Email:         user.Email,
-			Is_Chirpy_Red: false,
+			ID:          user.ID,
+			Email:       user.Email,
+			IsChirpyRed: false,
 		},
 	})
 }

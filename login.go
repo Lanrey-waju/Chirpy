@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Lanrey-waju/gChirpy/internal/auth"
 	"github.com/Lanrey-waju/gChirpy/internal/users"
@@ -11,8 +12,9 @@ import (
 
 func (cfg *apiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	type response struct {
@@ -46,13 +48,18 @@ func (cfg *apiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, err := auth.MakeJWT(user.ID)
+	accessToken, err := auth.MakeJWT(
+		user.ID,
+		cfg.jwtSecret,
+		time.Hour,
+	)
 	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create access JWT")
 		return
 	}
 
 	// Generate refresh tokens
-	refreshToken, err := auth.CreateRefreshToken()
+	refreshToken, err := auth.MakeRefreshToken()
 	if err != nil {
 		log.Printf("error creating refresh token: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "internal server error")
@@ -67,9 +74,9 @@ func (cfg *apiConfig) LoginUser(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, response{
 		User: users.User{
-			ID:            user.ID,
-			Email:         user.Email,
-			Is_Chirpy_Red: user.Is_Chirpy_Red,
+			ID:          user.ID,
+			Email:       user.Email,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 		Token:        accessToken,
 		RefreshToken: refreshToken,

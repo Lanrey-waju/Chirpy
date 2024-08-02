@@ -35,7 +35,7 @@ func (db *DB) SaveRefreshToken(id int, token string) error {
 
 }
 
-func (db *DB) CheckRefreshToken(token string) (users.User, error) {
+func (db *DB) UserForRefreshToken(token string) (users.User, error) {
 	dbStructure, err := db.loadDB()
 	if err != nil {
 		return users.User{}, err

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Lanrey-waju/gChirpy/internal/auth"
 )
@@ -16,7 +17,7 @@ func (cfg *apiConfig) UsersHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		cfg.HandlePostUser(w, r)
 	case http.MethodPut:
-		cfg.HandlePutUser(w, r)
+		cfg.handlerUsersUpdate(w, r)
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
@@ -34,21 +35,23 @@ func (cfg *apiConfig) HandleTokenRefresh(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	user, err := cfg.DB.CheckRefreshToken(tokenString)
+	user, err := cfg.DB.UserForRefreshToken(tokenString)
 	if err != nil {
 		log.Println(err)
 		respondWithError(w, http.StatusUnauthorized, "Couldn't get user for refresh token")
 		return
 	}
 
-	accessToken, err := auth.MakeJWT(user.ID)
+	accessToken, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Hour)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	resp := map[string]interface{}{
-		"token": accessToken,
+	resp := struct {
+		Token string `json:"token"`
+	}{
+		Token: accessToken,
 	}
 	respondWithJSON(w, http.StatusOK, resp)
 }

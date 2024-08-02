@@ -53,7 +53,7 @@ func (db *DB) CreateUser(email string, hashedPassword string) (users.User, error
 		ID:             id,
 		Email:          email,
 		HashedPassword: hashedPassword,
-		Is_Chirpy_Red:  false,
+		IsChirpyRed:    false,
 	}
 	dbStructure.Users[id] = user
 
@@ -130,7 +130,7 @@ func (db *DB) UpgradeUser(userID int) (users.User, error) {
 	if err != nil {
 		return users.User{}, err
 	}
-	user.Is_Chirpy_Red = true
+	user.IsChirpyRed = true
 
 	dbStructure.Users[userID] = user
 
