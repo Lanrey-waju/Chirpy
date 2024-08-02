@@ -1,22 +1,64 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
 )
 
 func (cfg *apiConfig) GetChirpHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("GetChirpsHandler invoked")
+
+	if r.URL.Query().Get("author_id") != "" {
+		authorIDString := r.URL.Query().Get("author_id")
+		authorIDInt, err := strconv.Atoi(authorIDString)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Error getting author ID")
+			return
+		}
+		chirps, err := cfg.DB.GetChirpsByAuthor(authorIDInt)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "error retrieving author's chirps")
+			return
+		}
+		switch r.URL.Query().Get("sort") {
+		case "asc":
+			sort.Slice(chirps, func(i, j int) bool {
+				return chirps[i].ID > chirps[j].ID
+			})
+		case "desc":
+			sort.Slice(chirps, func(i, j int) bool {
+				return chirps[i].ID < chirps[j].ID
+			})
+		default:
+			sort.Slice(chirps, func(i, j int) bool {
+				return chirps[i].ID < chirps[j].ID
+			})
+
+		}
+		respondWithJSON(w, http.StatusOK, chirps)
+
+	}
 	chirps, err := cfg.DB.GetChirps()
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error getting chirps")
 		return
 	}
-	sort.Slice(chirps, func(i, j int) bool {
-		return chirps[i].ID < chirps[j].ID
-	})
+
+	switch r.URL.Query().Get("sort") {
+	case "asc":
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].ID > chirps[j].ID
+		})
+	case "desc":
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].ID < chirps[j].ID
+		})
+	default:
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].ID < chirps[j].ID
+		})
+
+	}
 	respondWithJSON(w, http.StatusOK, chirps)
 
 }

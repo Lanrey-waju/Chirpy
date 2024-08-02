@@ -100,3 +100,20 @@ func (db *DB) GetChirpAuthorID(chirpID int) (int, error) {
 
 	return chirp.AuthorID, nil
 }
+
+func (db *DB) GetChirpsByAuthor(authorID int) ([]Chirp, error) {
+	chirps := []Chirp{}
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return chirps, nil
+	}
+
+	for _, chirp := range dbStructure.Chirps {
+		if chirp.AuthorID == authorID {
+			chirps = append(chirps, chirp)
+		}
+	}
+
+	return chirps, nil
+
+}
