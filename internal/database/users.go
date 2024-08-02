@@ -53,6 +53,7 @@ func (db *DB) CreateUser(email string, hashedPassword string) (users.User, error
 		ID:             id,
 		Email:          email,
 		HashedPassword: hashedPassword,
+		Is_Chirpy_Red:  false,
 	}
 	dbStructure.Users[id] = user
 
@@ -89,7 +90,7 @@ func (db *DB) GetUserByID(id int) (users.User, error) {
 }
 
 func (db *DB) UpdateUser(id int, email, hashedPaassword string) (users.User, error) {
-	dbData, err := db.loadDB()
+	dbStructure, err := db.loadDB()
 	if err != nil {
 		return users.User{}, nil
 	}
@@ -101,9 +102,9 @@ func (db *DB) UpdateUser(id int, email, hashedPaassword string) (users.User, err
 	user.Email = email
 	user.HashedPassword = hashedPaassword
 
-	dbData.Users[user.ID] = user
+	dbStructure.Users[user.ID] = user
 
-	if err := db.writeDB(dbData); err != nil {
+	if err := db.writeDB(dbStructure); err != nil {
 		log.Printf("Error writing to database: %v", err)
 		return users.User{}, err
 	}
@@ -118,4 +119,26 @@ func hashPassword(password string) (string, error) {
 		return "", err
 	}
 	return string(hashedPassword), nil
+}
+
+func (db *DB) UpgradeUser(userID int) (users.User, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return users.User{}, nil
+	}
+	user, err := db.GetUserByID(userID)
+	if err != nil {
+		return users.User{}, err
+	}
+	user.Is_Chirpy_Red = true
+
+	dbStructure.Users[userID] = user
+
+	if err := db.writeDB(dbStructure); err != nil {
+		log.Printf("Error writing to database: %v", err)
+		return users.User{}, err
+	}
+
+	return user, nil
+
 }
